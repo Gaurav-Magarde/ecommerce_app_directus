@@ -1,116 +1,65 @@
-# E-Commerce App
+# Flutter E-Commerce App with Directus CMS
 
-A Flutter e-commerce application with authentication, product browsing, and detailed product views.
+This repository contains a Flutter e-commerce application integrated with a locally hosted Directus CMS. The app features dynamic products and categories, server-side search, and a complete JWT-based authentication flow.
 
-## Features
+## 1. Directus Setup & Database Configuration
 
-### 🔐 Authentication
-- **Login Screen** with email and password validation
-- Animated UI with gradient background
-- Loading indicators during authentication
-- Toast notifications for user feedback
-- Form validation with error messages
+To run the backend locally, follow these steps:
 
-### 🏠 Home Screen
-- **Address Selector** at the top with multiple delivery addresses
-- **Search Bar** for filtering products by name or category
-- **Product Grid** displaying:
-  - Product image
-  - Product name
-  - Price
-  - Rating with stars
-  - Favorite icon (toggle functionality)
-- **Logout Button** in the app bar
-- **View All** button to see complete product list
+1. Make sure you have Node.js installed on your machine.
+2. Initialize a new Directus project via terminal:
+   `npx directus init my-project`
+3. **Database Configuration:** When prompted for the database, select **SQL (PostgreSQL or MySQL)**. Do not select MongoDB or SQLite. Enter your local SQL database credentials (username, password, database name).
+4. Start the Directus server:
+   `npx directus start`
+5. The local server will be running at `http://localhost:8055` (or `http://127.0.0.1:8055`).
+6. Go to the Directus Admin Panel -> Settings -> Access Policies -> Public, and give "Read" access to `directus_files` so images can load in the app.
 
-### 📱 Product Detail Screen
-- Large product image with hero animation
-- Category badge
-- Product name and description
-- Star rating with review count
-- Price display
-- Quantity selector
-- Feature list with checkmarks
-- Add to Cart button with total price calculation
-- Share and favorite functionality
+## 2. Collection Schema
 
-### 📋 View All Products Screen
-- Complete product catalog
-- Sort functionality:
-  - Name (A-Z)
-  - Price (Low to High)
-  - Price (High to Low)
-  - Rating (High to Low)
-- Product count display
-- Grid layout with favorite toggle
+The following collections and fields were created in the Directus database:
 
-## Demo Credentials
+**users (Extended System Collection)**
+- `first_login_at` (Type: Datetime)
+- `last_login_at` (Type: Datetime)
 
-Use these credentials to login:
-- **Email**: test@example.com
-- **Password**: password123
+**categories (Custom Collection)**
+- `id` (Auto-generated UUID)
+- `name` (String)
+- `description` (Text)
+- `image` (Image/File)
+- `is_active` (Boolean)
 
-## Project Structure
+**products (Custom Collection)**
+- `id` (Auto-generated UUID)
+- `name` (String)
+- `description` (Text)
+- `price` (Decimal/Float)
+- `discount_price` (Decimal/Float)
+- `category` (Many-to-One Relationship with categories collection)
+- `images` (Image/File)
+- `stock` (Integer)
+- `rating` (Float)
+- `is_active` (Boolean)
 
-```
-lib/
-├── main.dart                          # App entry point
-├── models/
-│   ├── product.dart                   # Product model with sample data
-│   └── user.dart                      # User model
-└── screens/
-    ├── login_screen.dart              # Authentication screen
-    ├── home_screen.dart               # Main product browsing screen
-    ├── product_detail_screen.dart     # Detailed product view
-    └── view_all_screen.dart           # Complete product catalog
-```
+## 3. API Endpoints Used
 
-## Dependencies
+The Flutter app interacts with the following Directus REST API endpoints:
 
-- `flutter`: SDK
-- `cupertino_icons`: iOS style icons
-- `fluttertoast`: Toast notifications
+- `POST /auth/login` : To authenticate users and retrieve JWT tokens.
+- `POST /auth/logout` : To invalidate the current session.
+- `POST /users` : To sign up a new user.
+- `GET /users/me` : To fetch current user data and verify the token.
+- `PATCH /users/me` : To update `first_login_at` and `last_login_at` timestamps.
+- `GET /items/categories` : To fetch the list of dynamic categories.
+- `GET /items/products` : To fetch products. Used with `?fields=*.*` to expand relationships and custom JSON `filter` queries for the search functionality.
 
-## Getting Started
+## 4. JWT Authentication Flow Explanation
 
-1. **Install dependencies:**
-   ```bash
-   flutter pub get
-   ```
+The app handles authentication securely using JSON Web Tokens (JWT) provided by Directus:
 
-2. **Run the app:**
-   ```bash
-   flutter run
-   ```
-
-3. **Login with demo credentials:**
-   - Email: test@example.com
-   - Password: password123
-
-## Key Highlights
-
-- ✅ Material Design with custom theming
-- ✅ Smooth animations and transitions
-- ✅ Form validation
-- ✅ Toast notifications for user feedback
-- ✅ Navigation using Material Navigator
-- ✅ State management for favorites
-- ✅ Loading indicators
-- ✅ Search functionality
-- ✅ Sort functionality
-- ✅ Responsive UI design
-- ✅ Error handling for images
-- ✅ Hero animations between screens
-
-## Notes for Recruitment Task
-
-This app demonstrates:
-- Clean code structure and organization
-- Proper use of Flutter widgets and navigation
-- State management implementation
-- User interaction handling
-- Form validation and authentication flow
-- Responsive and animated UI/UX
-- Material Design principles
-
-All features are fully functional with mock data for demonstration purposes.
+1. **Login:** When a user enters their credentials, the app calls `/auth/login`.
+2. **Storage:** Directus returns an `access_token` and a `refresh_token`. Both tokens are securely saved on the device using the `flutter_secure_storage` package.
+3. **Protected Requests:** For any protected API call (like fetching user profile or updating login dates), the `access_token` is passed in the header: `Authorization: Bearer <token>`.
+4. **Auto-Login:** When the app launches, it checks local storage for the JWT token. If it exists, it verifies it via `/users/me` and automatically logs the user in without requiring them to re-enter credentials.
+5. **Logout:** The app sends the `refresh_token` to `/auth/logout` to end the session on the server, and then clears the local secure storage.

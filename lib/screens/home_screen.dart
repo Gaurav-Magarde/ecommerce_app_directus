@@ -1,21 +1,24 @@
+import 'package:ecommerce_app/providers/products_controller.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../models/product.dart';
+import '../providers/auth_controller.dart';
 import 'product_detail_screen.dart';
 import 'view_all_screen.dart';
 import 'login_screen.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   final String userEmail;
 
   const HomeScreen({super.key, required this.userEmail});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  final List<Product> _products = Product.getSampleProducts();
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  List<Product> _products = [];
   final Set<String> _favorites = {};
   final TextEditingController _searchController = TextEditingController();
   String _selectedAddress = 'Home - 123 Main St, City';
@@ -24,7 +27,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _filteredProducts = _products;
   }
 
   @override
@@ -53,15 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _filterProducts(String query) {
     setState(() {
-      if (query.isEmpty) {
-        _filteredProducts = _products;
-      } else {
-        _filteredProducts = _products
-            .where((product) =>
-                product.name.toLowerCase().contains(query.toLowerCase()) ||
-                product.category.toLowerCase().contains(query.toLowerCase()))
-            .toList();
-      }
+      ref.read(homeControllerProvider.notifier).updateSearch (query.trim());
     });
   }
 
@@ -122,13 +116,15 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-              );
-              Fluttertoast.showToast(msg: 'Logged out successfully');
+            onPressed: () async {
+              try{
+                await ref.read(authControllerProvider.notifier).logOut();
+              }catch(e){
+                Fluttertoast.showToast(
+                  msg: e.toString(),
+                  backgroundColor: Colors.red,
+                );
+              }
             },
             child: const Text('Logout', style: TextStyle(color: Colors.red)),
           ),
@@ -139,6 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
@@ -184,13 +181,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
+          _buildCategories(),
           // Search Bar
           Container(
             padding: const EdgeInsets.all(16),
             color: Colors.white,
             child: TextField(
               controller: _searchController,
-              onChanged: _filterProducts,
+              onSubmitted: _filterProducts,
               decoration: InputDecoration(
                 hintText: 'Search products...',
                 prefixIcon: const Icon(Icons.search),
@@ -215,70 +213,80 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
 
           // Products Section
-          Expanded(
-            child: _filteredProducts.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No products found',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
-                    ),
-                  )
-                : SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Featured Products',
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => ViewAllScreen(
-                                        products: _products,
-                                        favorites: _favorites,
-                                        onToggleFavorite: _toggleFavorite,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: const Text('View All'),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              childAspectRatio: 0.7,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                            ),
-                            itemCount: _filteredProducts.take(4).length,
-                            itemBuilder: (context, index) {
-                              final product = _filteredProducts[index];
-                              return _buildProductCard(product);
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                    ),
+          Consumer(
+            builder:(_,ref,_){
+              final productsList = ref.watch(productControllerProvider);
+              return productsList.when(data: (data){
+                _filteredProducts = data;
+                _products = data;
+               return Expanded(
+                child: _filteredProducts.isEmpty
+                    ? const Center(
+                  child: Text(
+                    'No products found',
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
+                )
+                    : SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Featured Products',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ViewAllScreen(
+                                      products: _products,
+                                      favorites: _favorites,
+                                      onToggleFavorite: _toggleFavorite,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: const Text('View All'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio: 0.7,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          ),
+                          itemCount: _filteredProducts.take(4).length,
+                          itemBuilder: (context, index) {
+                            final product = _filteredProducts[index];
+                            return _buildProductCard(product);
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+              );
+               }, error: (e,s)=>Text("Something went wrong $e"), loading: ()=>Center(child: CircularProgressIndicator(),));
+
+            },
           ),
         ],
       ),
@@ -384,11 +392,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '\$${product.price.toStringAsFixed(2)}',
+                    '\$${product.discountPrice.toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                       color: Colors.purple,
+                    ),
+                  ),
+                  Text(
+                    '\$${product.price.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: Colors.grey,decoration: TextDecoration.lineThrough
                     ),
                   ),
                 ],
@@ -399,4 +415,64 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
+  Widget _buildCategories(){
+    return Consumer(
+        builder: (context, ref, child) {
+          final categoriesAsync = ref.watch(categoriesProvider);
+          final selected = ref.watch(homeControllerProvider.select((s)=>s.selectedCategory));
+          return categoriesAsync.when(
+            data: (categoriesList) {
+              final allCategories = ['All', ...categoriesList];
+
+              return Container(
+                height: 60,
+                color: Colors.white,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: allCategories.length,
+                  itemBuilder: (context, index) {
+                    final catName = allCategories[index];
+                    final isSelected = selected == catName;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: ChoiceChip(
+                        label: Text(
+                          catName,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : Colors.black87,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        selected: isSelected,
+                        selectedColor: Colors.purple,
+                        backgroundColor: Colors.grey.shade100,
+                        showCheckmark: false,
+                        onSelected: (selected) {
+                          setState(() {
+                            ref.read(homeControllerProvider.notifier).updateCategory(catName);
+                            });
+                        },
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+            loading: () => const SizedBox(
+                height: 60,
+                child: Center(child: CircularProgressIndicator())
+            ),
+            error: (e, s) => const SizedBox(
+                height: 60,
+                child: Center(child: Text("Error loading categories"))
+            ),
+          );
+        },
+      );
+  }
 }
+
+

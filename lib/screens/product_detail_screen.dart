@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../models/product.dart';
 
@@ -76,15 +77,26 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             flexibleSpace: FlexibleSpaceBar(
               background: Hero(
                 tag: 'product_${widget.product.id}',
-                child: Image.network(
-                  widget.product.imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.grey.shade200,
-                      child: const Icon(Icons.image, size: 100, color: Colors.grey),
+                child: FutureBuilder(
+                  future: Future(() async => await FlutterSecureStorage().read(key: 'jwt_token'),),
+                  builder: (context, asyncSnapshot) {
+                    if(asyncSnapshot.connectionState==ConnectionState.waiting) {
+                      return CircularProgressIndicator();
+
+
+                    }else {
+                      return  Image.network(
+                      widget.product.imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.grey.shade200,
+                          child: const Icon(Icons.image, size: 100, color: Colors.grey),
+                        );
+                      },
                     );
-                  },
+                    }
+                  }
                 ),
               ),
             ),
@@ -138,7 +150,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       }),
                       const SizedBox(width: 8),
                       Text(
-                        '${widget.product.rating} (234 reviews)',
+                        '${widget.product.rating} (${widget.product.rating} reviews)',
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 16,
@@ -150,6 +162,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
                   // Price
                   Row(
+
                     children: [
                       const Text(
                         'Price: ',
@@ -160,6 +173,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ),
                       Text(
                         '\$${widget.product.price.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.normal,
+                          color: Colors.grey,decoration: TextDecoration.lineThrough
+                        ),
+                      ),
+                      Text(
+                        '\$${widget.product.discountPrice.toStringAsFixed(2)}',
                         style: const TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.bold,
@@ -248,32 +269,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  ...[
-                    'High quality materials',
-                    'Long-lasting durability',
-                    'Easy to use',
-                    '1 year warranty',
-                  ].map((feature) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8.0),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.check_circle,
-                              color: Colors.green,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              feature,
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )),
+
                   const SizedBox(height: 100),
                 ],
               ),
@@ -310,7 +306,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     ),
                   ),
                   Text(
-                    '\$${(widget.product.price * _quantity).toStringAsFixed(2)}',
+                    '\$${(widget.product.discountPrice * _quantity).toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,

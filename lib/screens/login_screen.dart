@@ -1,20 +1,24 @@
+import 'package:ecommerce_app/providers/auth_controller.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'home_screen.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
-  final _formKey = GlobalKey<FormState>();
+class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProviderStateMixin {
   final _emailController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
   final _passwordController = TextEditingController();
+  final _nameController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _isLoginMode = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -57,27 +61,38 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       });
 
       // Simulate API call
-      await Future.delayed(const Duration(seconds: 2));
-
-      setState(() {
-        _isLoading = false;
-      });
-
-      // Simple validation (demo purposes)
-      if (_emailController.text == 'test@example.com' && _passwordController.text == 'password123') {
-        _showToast('Login Successful!');
-        
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => HomeScreen(userEmail: _emailController.text),
-            ),
-          );
+       try{
+         String user = '';
+        if (_isLoginMode) {
+          await ref.read(authControllerProvider.notifier).login(
+            email: _emailController.text,
+            password: _passwordController.text,);
         }
-      } else {
-        _showToast('Invalid email or password', isError: true);
+        else {
+         await ref.read(authControllerProvider.notifier).signUp(
+              email: _emailController.text,
+              password: _passwordController.text,
+              name: _nameController.text);
+        }
+      }catch(e){
+         _showToast(e.toString(),isError: true);
+         return;
+       }finally {
+         setState(() {
+           _isLoading = false;
+         });
+       }
+         _showToast('Login Successful!');
+      // login success Navigation
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(userEmail: _emailController.text),
+          ),
+        );
       }
+
     }
   }
 
@@ -127,8 +142,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     const SizedBox(height: 32),
                     
                     // Title
-                    const Text(
-                      'Welcome Back',
+                    Text(
+                      _isLoginMode ? 'Welcome Back' : 'Create Account',
                       style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
@@ -136,9 +151,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Login to your account',
-                      style: TextStyle(
+                    Text(
+                      _isLoginMode ? 'Login to your account' : 'Sign up to get started',
+                      style: const TextStyle(
                         fontSize: 16,
                         color: Colors.white70,
                       ),
@@ -157,6 +172,29 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           key: _formKey,
                           child: Column(
                             children: [
+                              // Name Field
+                              if(!_isLoginMode) TextFormField(
+                                controller: _nameController,
+                                keyboardType: TextInputType.emailAddress,
+                                decoration: InputDecoration(
+                                  labelText: 'Name',
+                                  hintText: 'enter your name',
+                                  prefixIcon: const Icon(Icons.person_2_outlined),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  filled: true,
+                                  fillColor: Colors.grey.shade50,
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your name';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+
                               // Email Field
                               TextFormField(
                                 controller: _emailController,
@@ -244,8 +282,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                             strokeWidth: 2,
                                           ),
                                         )
-                                      : const Text(
-                                          'Login',
+                                      : Text(
+                                         _isLoginMode? 'Login' : 'SignUp',
                                           style: TextStyle(
                                             fontSize: 18,
                                             fontWeight: FontWeight.bold,
@@ -258,34 +296,21 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         ),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
                     
-                    // Demo credentials hint
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Column(
-                        children: [
-                          Text(
-                            'Demo Credentials:',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Email: test@example.com',
-                            style: TextStyle(color: Colors.white70),
-                          ),
-                          Text(
-                            'Password: password123',
-                            style: TextStyle(color: Colors.white70),
-                          ),
-                        ],
+                    // change login mode Login/signup
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _isLoginMode = !_isLoginMode; // Mode switch
+                          _formKey.currentState?.reset(); // Form clear
+                        });
+                      },
+                      child: Text(
+                        _isLoginMode
+                            ? "Don't have an account? Sign Up"
+                            : "Already have an account? Login",
+                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
